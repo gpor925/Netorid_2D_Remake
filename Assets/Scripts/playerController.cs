@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -10,7 +11,7 @@ public class playerController : MonoBehaviour
     Rigidbody2D rb;
     public int speed = 4;
     public int jump = 5;
-    
+
     [SerializeField] SpriteRenderer sprite;
     [SerializeField] Animator anim;
     [SerializeField] GameObject shot;
@@ -18,14 +19,23 @@ public class playerController : MonoBehaviour
     GameObject txtWin,
                                 txtLose;
 
-    [SerializeField] bool hasJumped;
-
     [SerializeField] int lives = 3;
     [SerializeField] int items = 0;
     [SerializeField] float time = 180;
-    [SerializeField] float canJump = 0.5f;
 
-    public static bool right = true;
+    public float coyoteTime = 0.2f;
+    private float coyoteTimeCounter;
+
+    public float jumpBufferTime = 0.2f;
+    private float jumpBufferCounter;
+
+    public float shotCooldown = 1f;
+    private float shotCooldownCounter;
+
+    public static bool lookingRight = true;
+    public static bool lookingUp = false;
+    private bool wasGrounded;
+    private bool hasJumped;
 
     [SerializeField]
     TMP_Text txtLives,
@@ -36,7 +46,8 @@ public class playerController : MonoBehaviour
 
     AudioSource audioSrc;
 
-    [SerializeField] AudioClip sndJump,
+    [SerializeField]
+    AudioClip sndJump,
                                sndItem,
                                sndShoot,
                                sndDamage;
@@ -69,26 +80,73 @@ public class playerController : MonoBehaviour
             if (inputX > 0)
             {               //Derecha
                 sprite.flipX = false;
-                right = true;
+                lookingRight = true;
             }
             else if (inputX < 0)
             {                //Izquierda
                 sprite.flipX = true;
-                right = false;
+                lookingRight = false;
             }
 
-            if (Input.GetKeyDown(KeyCode.Space) && canJump > 0)
+            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
             {
-                rb.transform.position = new Vector2(rb.position.x, rb.position.y + 0.3f);
-                rb.AddForce(Vector2.up * jump, ForceMode2D.Impulse);
-                hasJumped = true;
-                canJump = 0;
-                audioSrc.PlayOneShot(sndJump);
+                lookingUp = true;
+            }
+            else 
+            {
+                lookingUp = false;
             }
 
-            if (canJump > 0.0f)
+            //Coyote time
+
+            if (isGrounded())
+            {
+                coyoteTimeCounter = coyoteTime;
+            }
+            else
+            {
+                coyoteTimeCounter -= Time.deltaTime;
+            }
+
+            //Jump buffer
+
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                jumpBufferCounter = jumpBufferTime;
+            }
+            else
+            {
+                jumpBufferCounter -= Time.deltaTime;
+            }
+            
+            if (jumpBufferCounter < -0.5f)
+            jumpBufferCounter = -0.1f;
+
+            //Landing detection
+            if (isGrounded() && !wasGrounded)
+            {
+                OnLand();
+            }
+            void OnLand()
             {
                 hasJumped = false;
+            }
+
+            wasGrounded = isGrounded();
+
+            //Salto
+
+            if (jumpBufferCounter > 0f && coyoteTimeCounter > 0f)
+            {
+                rb.linearVelocity = new Vector2(rb.linearVelocityX, jump);
+                jumpBufferCounter = 0f;
+                audioSrc.PlayOneShot(sndJump);
+                hasJumped = true;
+            }
+            if (Input.GetKeyUp(KeyCode.Space) && rb.linearVelocity.y > 0f)
+            {
+                rb.linearVelocity = new Vector2(rb.linearVelocityX, rb.linearVelocityY * 0.5f);
+                coyoteTimeCounter = 0f;
             }
 
             //Animaciones
@@ -104,26 +162,43 @@ public class playerController : MonoBehaviour
                 anim.SetBool("isRunning", false);
             }
 
-            if (hasJumped)
+            if (!isGrounded() && hasJumped == true)
             {
                 anim.SetBool("isJumping", true);
             }
             else
             {
                 anim.SetBool("isJumping", false);
-                hasJumped = false;
             }
 
             //DISPARO
+
+            shotCooldownCounter -= Time.deltaTime;
+
+            if (shotCooldownCounter < -1f)
+                shotCooldownCounter = -0.5f;
+
             if (Input.GetMouseButtonDown(0))
             {
+                shoot();
+            }
+
+            void shoot()
+            {
+                if (shotCooldownCounter > 0)
+                {
+                    return;
+                }
+
+                shotCooldownCounter = shotCooldown;
+
                 Instantiate(shot,
                             new Vector3(transform.position.x,
                                         transform.position.y + 1.7f,
                                         0),
                             Quaternion.identity);
-                anim.SetBool("isShooting", true);
                 audioSrc.PlayOneShot(sndShoot);
+                anim.SetBool("isShooting", true);
             }
 
             time = time - Time.deltaTime;
@@ -140,23 +215,25 @@ public class playerController : MonoBehaviour
             sec = Mathf.Floor(time % 60);
 
             txtTime.text = min.ToString("00") + ":" + sec.ToString("00");
-        } else
+        }
+        else
         {
             sprite.gameObject.SetActive(false);
         }
     }
 
 
-    void grounded()
+    bool isGrounded()
     {
-        RaycastHit2D touch = Physics2D.Raycast(transform.position, Vector2.down, 0.1f);
+        RaycastHit2D touch = Physics2D.Raycast(transform.position, Vector2.down, 0.2f);
 
         if (touch.collider == null)
-        {   
-            canJump -= 0.1f * Time.deltaTime;
-        } else if (touch.collider)
         {
-            canJump = 0.5f;
+            return false;
+        }
+        else
+        {
+            return true;
         }
     }
 

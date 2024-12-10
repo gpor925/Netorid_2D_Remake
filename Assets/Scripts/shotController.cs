@@ -10,7 +10,11 @@ public class shotController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
 
-        if (playerController.right == true)
+        if (playerController.lookingUp)
+        {
+            rb.linearVelocity = Vector2.up * speed;
+        } 
+        else if (playerController.lookingRight)
         {
             rb.linearVelocity = Vector2.right * speed;
         }
@@ -18,7 +22,7 @@ public class shotController : MonoBehaviour
         {
             rb.linearVelocity = Vector2.left * speed;
         }
-
+        
         Invoke("destroyShot", 3);
     }
 
