@@ -17,7 +17,7 @@ public class playerController : MonoBehaviour
     [SerializeField] GameObject shot;
     [SerializeField]
     GameObject txtWin,
-                                txtLose;
+               txtLose;
 
     [SerializeField] int lives = 3;
     [SerializeField] int items = 0;
