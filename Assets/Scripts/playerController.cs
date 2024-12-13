@@ -1,8 +1,10 @@
 using System;
+using System.Collections;
 using System.Threading;
 using TMPro;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 public class playerController : MonoBehaviour
@@ -31,6 +33,12 @@ public class playerController : MonoBehaviour
 
     public float shotCooldown = 1f;
     private float shotCooldownCounter;
+
+    private bool canDash = true;
+    public bool isDashing;
+    private float dashingPower = 24f;
+    private float dashingTime = 0.3f;
+    private float dashingCooldown = 0.5f;
 
     public static bool lookingRight = true;
     public static bool lookingUp = false;
@@ -74,6 +82,11 @@ public class playerController : MonoBehaviour
     {
         if (!endGame)
         {
+            if(isDashing)
+            {
+                return;
+            }
+
             float inputX = Input.GetAxis("Horizontal");
             rb.linearVelocity = new Vector2(inputX * speed, rb.linearVelocity.y);
 
@@ -149,6 +162,13 @@ public class playerController : MonoBehaviour
                 coyoteTimeCounter = 0f;
             }
 
+            //Dash
+
+            if (Input.GetKeyDown(KeyCode.LeftShift) && canDash)
+            {
+                StartCoroutine(Dash());
+            }
+
             //Animaciones
             if (Input.GetKey(KeyCode.A) ||
                 Input.GetKey(KeyCode.D) ||
@@ -222,6 +242,29 @@ public class playerController : MonoBehaviour
         }
     }
 
+    private IEnumerator Dash() 
+    {
+        canDash = false;
+        isDashing = true;
+        GameManager.invulnerable = true;
+        float originalGravity = rb.gravityScale;
+        rb.gravityScale = 0f;
+        if (lookingRight)
+        {
+            rb.linearVelocity = new Vector2(transform.localScale.x * dashingPower, 0f);
+        }
+        else
+        {
+            rb.linearVelocity = new Vector2(transform.localScale.x * -1 * dashingPower, 0f);
+        }
+        yield return new WaitForSeconds(dashingTime);
+        rb.gravityScale = originalGravity;
+        isDashing = false;
+        GameManager.invulnerable = false;
+        yield return new WaitForSeconds(dashingCooldown);
+        canDash = true;
+        
+    }
 
     bool isGrounded()
     {
