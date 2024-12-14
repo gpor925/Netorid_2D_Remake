@@ -1,10 +1,6 @@
-using System;
 using System.Collections;
-using System.Threading;
 using TMPro;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 public class playerController : MonoBehaviour
@@ -45,6 +41,8 @@ public class playerController : MonoBehaviour
     private bool wasGrounded;
     private bool hasJumped;
 
+    [SerializeField] bool isInWater;
+
     [SerializeField]
     TMP_Text txtLives,
                               txtItems,
@@ -58,13 +56,16 @@ public class playerController : MonoBehaviour
     AudioClip sndJump,
                                sndItem,
                                sndShoot,
-                               sndDamage;
+                               sndDamage,
+                               sndDash,
+                               sndHealth;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         GameManager.invulnerable = false;
+
         txtLives.text = "Lives: " + lives;
 
         txtItems.text = "Items: " + items;
@@ -75,6 +76,8 @@ public class playerController : MonoBehaviour
         txtWin.SetActive(false);
 
         audioSrc = GetComponent<AudioSource>();
+
+
     }
 
     // Update is called once per frame
@@ -82,7 +85,7 @@ public class playerController : MonoBehaviour
     {
         if (!endGame)
         {
-            if(isDashing)
+            if (isDashing)
             {
                 return;
             }
@@ -105,7 +108,7 @@ public class playerController : MonoBehaviour
             {
                 lookingUp = true;
             }
-            else 
+            else
             {
                 lookingUp = false;
             }
@@ -131,9 +134,9 @@ public class playerController : MonoBehaviour
             {
                 jumpBufferCounter -= Time.deltaTime;
             }
-            
+
             if (jumpBufferCounter < -0.5f)
-            jumpBufferCounter = -0.1f;
+                jumpBufferCounter = -0.1f;
 
             //Landing detection
             if (isGrounded() && !wasGrounded)
@@ -160,6 +163,15 @@ public class playerController : MonoBehaviour
             {
                 rb.linearVelocity = new Vector2(rb.linearVelocityX, rb.linearVelocityY * 0.5f);
                 coyoteTimeCounter = 0f;
+            }
+
+            if (isInWater)
+            {
+                rb.gravityScale = 0.5f;
+            }
+            else
+            {
+                rb.gravityScale = 1.5f;
             }
 
             //Dash
@@ -240,15 +252,21 @@ public class playerController : MonoBehaviour
         {
             sprite.gameObject.SetActive(false);
         }
+
+        if(Input.GetKeyDown(KeyCode.Escape))
+        {
+            SceneManager.LoadScene("MainMenu");
+        }
     }
 
-    private IEnumerator Dash() 
+    private IEnumerator Dash()
     {
         canDash = false;
         isDashing = true;
         GameManager.invulnerable = true;
         float originalGravity = rb.gravityScale;
         rb.gravityScale = 0f;
+        audioSrc.PlayOneShot(sndDash);
         if (lookingRight)
         {
             rb.linearVelocity = new Vector2(transform.localScale.x * dashingPower, 0f);
@@ -263,7 +281,7 @@ public class playerController : MonoBehaviour
         GameManager.invulnerable = false;
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
-        
+
     }
 
     bool isGrounded()
@@ -278,16 +296,17 @@ public class playerController : MonoBehaviour
         {
             return true;
         }
+
     }
 
     void OnTriggerEnter2D(Collider2D other)
     {
         if (other.gameObject.tag == "PowerUp")
         {
+            lives++;
+            txtLives.text = "Lives: " + lives;
+            audioSrc.PlayOneShot(sndHealth);
             Destroy(other.gameObject);
-            sprite.color = Color.yellow;
-            GameManager.invulnerable = true;
-            Invoke("becomeVulnerable", 5);
         }
 
         if (other.gameObject.tag == "Item")
@@ -296,12 +315,42 @@ public class playerController : MonoBehaviour
             items++;
             txtItems.text = "Items: " + items;
             audioSrc.PlayOneShot(sndItem);
-            if (items == 4)
+            if (SceneManager.GetActiveScene().name == "Level1")
             {
-                txtWin.SetActive(true);
-                endGame = true;
-                Invoke("goToCredits", 3);
+                if (items == 10)
+                {
+                    txtWin.SetActive(true);
+                    endGame = true;
+                    Invoke("goToLevel2", 3);
+                }
             }
+            else if (SceneManager.GetActiveScene().name == "Level2")
+            {
+                if (items == 1)
+                {
+                    txtWin.SetActive(true);
+                    endGame = true;
+                    Invoke("goToCredits", 3);
+                }
+            }
+        }
+
+        if (other.gameObject.tag == "Water")
+        {
+            isInWater = true;
+        }
+
+        if (other.gameObject.tag == "FinalBoss")
+        {
+            takeDamage();
+        }
+    }
+
+    void OnTriggerExit2D(Collider2D other)
+    {
+        if (other.gameObject.tag == "Water")
+        {
+            isInWater = false;
         }
     }
 
@@ -317,7 +366,7 @@ public class playerController : MonoBehaviour
         txtLives.text = "Lives: " + lives;
         sprite.color = Color.red;
         GameManager.invulnerable = true;
-        Invoke("becomeVulnerable", 1);
+        Invoke("becomeVulnerable", 1.5f);
         audioSrc.PlayOneShot(sndDamage);
         if (lives == 0)
         {
@@ -330,6 +379,11 @@ public class playerController : MonoBehaviour
     void goToMenu()
     {
         SceneManager.LoadScene("MainMenu");
+    }
+
+    void goToLevel2()
+    {
+        SceneManager.LoadScene("Level2");
     }
 
     void goToCredits()
